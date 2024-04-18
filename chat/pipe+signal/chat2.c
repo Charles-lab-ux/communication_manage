@@ -1,22 +1,29 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <signal.h>
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<sys/types.h>
 #include<sys/stat.h>
-#define ATOB "atob.txt"
-#define BTOA "btoa.txt"
+#include<fcntl.h>
+#include<unistd.h>
+#include<signal.h>
 void signal_handler(int signum){
     if(signum == SIGUSR2){
-        char message[256];
-        int fd = open(ATOB, O_RDWR);
-        read(fd, message, sizeof(message));
-        printf("[A]: %s",message);
-        close(fd);
+        char buf[1024];
+        int fd_atob=open("atob",O_RDONLY);
+        if(fd_atob==-1){
+            perror("open");
+            exit(1);
+        }
+        if(read(fd_atob,buf,1024)==-1){
+            perror("read");
+            exit(1);
+        }
+        printf("[A]: %s",buf);
+        close(fd_atob);
     }
 }
-int main() {
+int main()
+{
     int fd_atob=open("atob",O_RDONLY);
     int fd_btoa=open("btoa",O_WRONLY);
     if(-1==fd_atob||-1==fd_btoa)
@@ -24,34 +31,26 @@ int main() {
         perror("open");
         exit(1);
     }
+    
     int Apid;
     read(fd_atob,&Apid,sizeof(int));
     printf("Get A's pid: %d\n",Apid);
+
     int pid=getpid();
     write(fd_btoa,&pid,sizeof(int));
     printf("Send B's pid: %d\n",pid);
 
     signal(SIGUSR2,signal_handler);
-
-    int fd;
-    char message[256];
-
-    // 打开文件
-    fd = open(BTOA, O_RDWR, 0666);
-    if (fd == -1) {
-        perror("open");
-        exit(EXIT_FAILURE);
+    printf("Let's talk!\n");
+    char buf[1024];
+    while(memset(buf,0,1024),read(0,buf,1024)!=0)
+    {
+        printf("[B]: %s",buf);
+        write(fd_btoa,buf,strlen(buf));
+        kill(Apid, SIGUSR1);
     }
-
-    // 读取文件中的消息并显示
-    while (fgets(message, sizeof(message), stdin) != NULL) {
-        write(fd, message, strlen(message));
-        printf("[B]: %s",message);
-        kill(Apid,SIGUSR1);
-    }
-
-    // 关闭文件
-    close(fd);
-
+    close(fd_btoa);
+    close(fd_atob);
+    printf("pipe exit!\n");
     return 0;
 }
