@@ -1,23 +1,30 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include<signal.h>
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<sys/types.h>
 #include<sys/stat.h>
-#define ATOB "atob.txt"
-#define BTOA "btoa.txt"
+#include<fcntl.h>
+#include<unistd.h>
+#include<signal.h>
 void signal_handler(int signum){
     if(signum == SIGUSR1){
-        char message[256];
-        int fd = open(BTOA, O_RDWR);
-        read(fd, message, sizeof(message));
-        printf("[B]: %s",message);   
-        close(fd);
+        char buf[1024];
+        memset(buf,0,1024);
+        int fd_btoa=open("btoa",O_RDONLY);
+        if(fd_btoa==-1){
+            perror("open");
+            exit(1);
+        }
+        if(read(fd_btoa,buf,1024)==-1){
+            perror("read");
+            exit(1);
+        }
+        printf("[B]: %s",buf);
+        close(fd_btoa);
     }
 }
-int main() {
-    // 管道发送进程号
+int main(){
+    // 创建命名管道
     mkfifo("atob",0777);
     mkfifo("btoa",0777);
     int fd_atob=open("atob",O_WRONLY);
@@ -27,7 +34,8 @@ int main() {
         perror("open");
         exit(1);
     }
-        printf("Send A's pid: %d\n", getpid());
+
+    printf("Send A's pid: %d\n", getpid());
     int pid=getpid();
     write(fd_atob,&pid,sizeof(int));
 
@@ -36,25 +44,16 @@ int main() {
     printf("Get B's pid: %d\n", Bpid);
 
     signal(SIGUSR1,signal_handler);
-    int fd;
-    char message[256];
-
-    // 打开文件
-    fd = open(ATOB, O_RDWR, 0666);
-    if (fd == -1) {
-        perror("open");
-        exit(EXIT_FAILURE);
+    printf("Let's talk!\n");
+    char buf[1024];
+    while(memset(buf,0,1024),read(0,buf,1024)!=0)
+    {
+        printf("[A]: %s",buf);
+        write(fd_atob,buf,strlen(buf));
+        kill(Bpid, SIGUSR2);
     }
-
-    // 从标准输入读取消息，写入文件
-    while (fgets(message, sizeof(message), stdin) != NULL) {
-        write(fd, message, strlen(message));
-        printf("[A]: %s",message);
-        kill(Bpid,SIGUSR2);
-    }
-
-    // 关闭文件
-    close(fd);
-
+    close(fd_atob);
+    close(fd_btoa);
+    printf("pipe exit!\n");
     return 0;
 }
