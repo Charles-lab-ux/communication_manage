@@ -63,3 +63,4 @@ int main() {
 
     return 0;
 }
+// ipcs -m可以查看共享内存的大小
